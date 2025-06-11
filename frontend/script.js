@@ -84,11 +84,24 @@ uploadButton.addEventListener('click', async () => {
     // Resim ve video dosyalarını kontrol et
     const validTypes = [
         'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm'
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm',
+        'video/quicktime', 'video/x-msvideo', 'video/3gpp', 'video/3gpp2'  // iPhone/iOS uyumluluğu için
     ];
-    const invalidFiles = selectedFiles.filter(file => !validTypes.includes(file.type));
+    
+    // Debug: Dosya türlerini console'a yazdır
+    selectedFiles.forEach(file => {
+        console.log(`Dosya: ${file.name}, Tür: ${file.type}, Boyut: ${file.size}`);
+    });
+    
+    const invalidFiles = selectedFiles.filter(file => {
+        // Video veya resim dosyası mı kontrol et
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/') || validTypes.includes(file.type);
+        return !(isImage || isVideo);
+    });
     
     if (invalidFiles.length > 0) {
+        console.log('Geçersiz dosyalar:', invalidFiles.map(f => ({ name: f.name, type: f.type })));
         showStatus('📸🎥 Lütfen sadece resim veya video dosyaları seçin (JPG, PNG, GIF, WebP, MP4, AVI, MOV)', 'error');
         setTimeout(hideStatus, 3000);
         return;
