@@ -12,17 +12,29 @@ const app = express();
 app.use(cors());
 
 // --- AYARLAR ---
-const KEYFILEPATH = path.join(__dirname, 'credentials.json');
 // !!! BU SATIRI KENDİ KLASÖR ID'NİZ İLE DEĞİŞTİRİN !!!
 const DRIVE_FOLDER_ID = '1ZWL6g4fJrwfhJhOot2N2P-MNfXr148mY'; 
 // --- BİTTİ ---
 
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
 
-const auth = new google.auth.GoogleAuth({
-    keyFile: KEYFILEPATH,
-    scopes: SCOPES,
-});
+// Google Auth'u ortam değişkenlerine göre yapılandır
+let auth;
+if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    // Railway (veya değişkenin ayarlandığı başka bir ortam) için
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+    auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: SCOPES,
+    });
+} else {
+    // Yerel geliştirme için
+    const KEYFILEPATH = path.join(__dirname, 'credentials.json');
+    auth = new google.auth.GoogleAuth({
+        keyFile: KEYFILEPATH,
+        scopes: SCOPES,
+    });
+}
 
 const upload = multer({ storage: multer.memoryStorage() });
 
