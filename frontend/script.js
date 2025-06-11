@@ -21,7 +21,8 @@ uploadButton.addEventListener('click', async () => {
 
     try {
         // Backend'in çalıştığı adrese POST isteği gönderiyoruz
-        const response = await fetch('http://localhost:3000/upload', {
+        // Railway'de aynı domain'de çalışacağı için relative path kullanıyoruz
+        const response = await fetch('/upload', {
             method: 'POST',
             body: formData,
         });
@@ -37,7 +38,7 @@ uploadButton.addEventListener('click', async () => {
             statusDiv.style.color = 'red';
         }
     } catch (error) {
-        statusDiv.textContent = 'Sunucuya bağlanırken bir hata oluştu. Backend\'in çalıştığından emin olun.';
+        statusDiv.textContent = 'Sunucuya bağlanırken bir hata oluştu.';
         statusDiv.style.color = 'red';
         console.error('Fetch Hatası:', error);
     }

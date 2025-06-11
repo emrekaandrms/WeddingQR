@@ -11,6 +11,12 @@ const { Readable } = require('stream');
 const app = express();
 app.use(cors());
 
+// Debug middleware
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path} - ${new Date().toISOString()}`);
+    next();
+});
+
 // Frontend dosyalarını serve et
 app.use(express.static(path.join(__dirname, '../frontend')));
 
@@ -41,7 +47,14 @@ if (process.env.GOOGLE_CREDENTIALS_JSON) {
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Test endpoint
+app.get('/test', (req, res) => {
+    res.json({ message: 'Backend çalışıyor!', timestamp: new Date().toISOString() });
+});
+
 app.post('/upload', upload.array('files'), async (req, res) => {
+    console.log('Upload isteği alındı, dosya sayısı:', req.files ? req.files.length : 0);
+    
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).send('Hiç dosya yüklenmedi.');
@@ -50,6 +63,7 @@ app.post('/upload', upload.array('files'), async (req, res) => {
         const driveService = google.drive({ version: 'v3', auth });
 
         for (const file of req.files) {
+            console.log('Yükleniyor:', file.originalname);
             const fileMetadata = {
                 name: file.originalname,
                 parents: [DRIVE_FOLDER_ID],
@@ -80,7 +94,14 @@ app.post('/upload', upload.array('files'), async (req, res) => {
 
 // Ana sayfa için route
 app.get('/', (req, res) => {
+    console.log('Ana sayfa isteği alındı');
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+// 404 handler
+app.use((req, res) => {
+    console.log('404 - Bulunamadı:', req.path);
+    res.status(404).send('Sayfa bulunamadı');
 });
 
 const PORT = process.env.PORT || 3000;
