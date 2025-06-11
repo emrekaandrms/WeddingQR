@@ -33,7 +33,7 @@ let isGoogleConfigured = false;
 
 try {
     if (process.env.GOOGLE_CREDENTIALS_JSON) {
-        // Railway (veya değişkenin ayarlandığı başka bir ortam) için
+        // Railway JSON formatı için (eğer çalışırsa)
         console.log('Google Credentials ortam değişkeninden yükleniyor...');
         const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
         auth = new google.auth.GoogleAuth({
@@ -42,9 +42,32 @@ try {
         });
         isGoogleConfigured = true;
         console.log('✅ Google Credentials başarıyla yüklendi');
+    } else if (process.env.type && process.env.private_key && process.env.client_email) {
+        // Railway'in ayrı variable'ları için
+        console.log('Google Credentials ayrı variable\'lardan yükleniyor...');
+        const credentials = {
+            type: process.env.type,
+            project_id: process.env.project_id,
+            private_key_id: process.env.private_key_id,
+            private_key: process.env.private_key.replace(/\\n/g, '\n'), // \n karakterlerini düzelt
+            client_email: process.env.client_email,
+            client_id: process.env.client_id,
+            auth_uri: process.env.auth_uri,
+            token_uri: process.env.token_uri,
+            auth_provider_x509_cert_url: process.env.auth_provider_x509_cert_url,
+            client_x509_cert_url: process.env.client_x509_cert_url,
+            universe_domain: process.env.universe_domain || 'googleapis.com'
+        };
+        
+        auth = new google.auth.GoogleAuth({
+            credentials,
+            scopes: SCOPES,
+        });
+        isGoogleConfigured = true;
+        console.log('✅ Google Credentials ayrı variable\'lardan başarıyla yüklendi');
     } else {
         // Yerel geliştirme için
-        console.log('⚠️  GOOGLE_CREDENTIALS_JSON ortam değişkeni bulunamadı');
+        console.log('⚠️  Ortam değişkenleri bulunamadı');
         console.log('Yerel credentials.json dosyası aranıyor...');
         const KEYFILEPATH = path.join(__dirname, 'backend/credentials.json');
         auth = new google.auth.GoogleAuth({
