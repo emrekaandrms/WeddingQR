@@ -3,12 +3,11 @@
   "build": {
     "builder": "NIXPACKS",
     "nixpacksConfig": {
-      "installCommand": "cd backend && npm install",
-      "startCommand": "cd backend && npm start"
+      "rootDir": "/backend"
     }
   },
   "deploy": {
-    "startCommand": "cd backend && npm start",
+    "startCommand": "npm start",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
