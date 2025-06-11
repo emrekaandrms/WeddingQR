@@ -11,9 +11,6 @@ const { Readable } = require('stream');
 const app = express();
 app.use(cors());
 
-// Frontend dosyalarını serve et
-app.use(express.static(path.join(__dirname, '../frontend')));
-
 // --- AYARLAR ---
 // !!! BU SATIRI KENDİ KLASÖR ID'NİZ İLE DEĞİŞTİRİN !!!
 const DRIVE_FOLDER_ID = '1ZWL6g4fJrwfhJhOot2N2P-MNfXr148mY'; 
@@ -76,11 +73,6 @@ app.post('/upload', upload.array('files'), async (req, res) => {
         console.error('YÜKLEME SIRASINDA DETAYLI HATA:', error);
         res.status(500).send('Dosyalar yüklenirken sunucuda bir hata oluştu.');
     }
-});
-
-// Ana sayfa için route
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
