@@ -37,9 +37,9 @@ function handleFiles(files) {
     updateFilePreview();
     
     if (selectedFiles.length > 0) {
-        uploadButton.textContent = `💕 ${selectedFiles.length} Fotoğraf Paylaş 💕`;
+        uploadButton.textContent = `💕 ${selectedFiles.length} Anı Paylaş 💕`;
     } else {
-        uploadButton.textContent = '💕 Fotoğrafları Paylaş 💕';
+        uploadButton.textContent = '💕 Anıları Paylaş 💕';
     }
 }
 
@@ -49,7 +49,8 @@ function updateFilePreview() {
     selectedFiles.forEach((file, index) => {
         const fileItem = document.createElement('div');
         fileItem.className = 'file-item';
-        fileItem.textContent = `📷 ${file.name}`;
+        const icon = file.type.startsWith('video/') ? '🎥' : '📷';
+        fileItem.textContent = `${icon} ${file.name}`;
         filePreview.appendChild(fileItem);
     });
 }
@@ -75,17 +76,20 @@ function hideProgress() {
 
 uploadButton.addEventListener('click', async () => {
     if (selectedFiles.length === 0) {
-        showStatus('💔 Lütfen en az bir fotoğraf seçin', 'error');
+        showStatus('💔 Lütfen en az bir dosya seçin', 'error');
         setTimeout(hideStatus, 3000);
         return;
     }
 
-    // Sadece resim dosyalarını kontrol et
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    // Resim ve video dosyalarını kontrol et
+    const validTypes = [
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm'
+    ];
     const invalidFiles = selectedFiles.filter(file => !validTypes.includes(file.type));
     
     if (invalidFiles.length > 0) {
-        showStatus('📸 Lütfen sadece resim dosyaları seçin (JPG, PNG, GIF, WebP)', 'error');
+        showStatus('📸🎥 Lütfen sadece resim veya video dosyaları seçin (JPG, PNG, GIF, WebP, MP4, AVI, MOV)', 'error');
         setTimeout(hideStatus, 3000);
         return;
     }
@@ -96,7 +100,7 @@ uploadButton.addEventListener('click', async () => {
         formData.append('files', file);
     });
 
-    showStatus(`💕 ${selectedFiles.length} fotoğraf yükleniyor... Lütfen bekleyin`, 'loading');
+    showStatus(`💕 ${selectedFiles.length} dosya yükleniyor... Lütfen bekleyin`, 'loading');
     showProgress(0);
 
     // Fake progress animation
@@ -108,7 +112,7 @@ uploadButton.addEventListener('click', async () => {
     }, 500);
 
     try {
-        console.log('Upload isteği gönderiliyor:', selectedFiles.length, 'fotoğraf');
+        console.log('Upload isteği gönderiliyor:', selectedFiles.length, 'dosya');
         
         const response = await fetch('/upload', {
             method: 'POST',
@@ -123,13 +127,13 @@ uploadButton.addEventListener('click', async () => {
         console.log('Response text:', resultText);
 
         if (response.ok) {
-            showStatus(`🎉 ${resultText}<br><small>✨ Fotoğraflarınız Google Drive'a başarıyla eklendi! Teşekkür ederiz 💕</small>`, 'success');
+            showStatus(`🎉 ${resultText}<br><small>✨ Anılarınız Google Drive'a başarıyla eklendi! Teşekkür ederiz 💕</small>`, 'success');
             
             // Reset form
             selectedFiles = [];
             fileInput.value = '';
             updateFilePreview();
-            uploadButton.textContent = '💕 Fotoğrafları Paylaş 💕';
+            uploadButton.textContent = '💕 Anıları Paylaş 💕';
             
             // Confetti effect (simulate)
             setTimeout(() => {
