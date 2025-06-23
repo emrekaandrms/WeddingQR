@@ -93,8 +93,9 @@ app.post('/upload', (req, res) => {
     const busboy = Busboy({ headers: req.headers });
     const driveService = google.drive({ version: 'v3', auth });
 
-    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-        console.log(`📤 Yükleniyor: ${filename} (${mimetype})`);
+    busboy.on('file', (fieldname, file, info) => {
+        const { filename, encoding, mimeType } = info;
+        console.log(`📤 Yükleniyor: ${filename} (${mimeType})`);
 
         const fileMetadata = {
             name: filename,
@@ -102,7 +103,7 @@ app.post('/upload', (req, res) => {
         };
 
         const media = {
-            mimeType: mimetype,
+            mimeType: mimeType,
             body: file, // Dosya stream'ini doğrudan body olarak veriyoruz
         };
 
