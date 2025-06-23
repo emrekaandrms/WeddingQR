@@ -3,8 +3,7 @@ const uploadButton = document.getElementById('upload-button');
 const statusDiv = document.getElementById('status');
 const uploadArea = document.getElementById('upload-area');
 const filePreview = document.getElementById('file-preview');
-const progressBar = document.getElementById('progress-bar');
-const progressFill = document.getElementById('progress-fill');
+const uploadProgressContainer = document.getElementById('upload-progress-container');
 
 let selectedFiles = [];
 
@@ -46,11 +45,15 @@ function handleFiles(files) {
 function updateFilePreview() {
     filePreview.innerHTML = '';
     
-    selectedFiles.forEach((file, index) => {
+    selectedFiles.forEach((file) => {
         const fileItem = document.createElement('div');
         fileItem.className = 'file-item';
         const icon = file.type.startsWith('video/') ? '🎥' : '📷';
-        fileItem.textContent = `${icon} ${file.name}`;
+        
+        // Dosya boyutunu MB olarak formatla
+        const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+
+        fileItem.innerHTML = `${icon} ${file.name} <span class="file-size">(${sizeInMB} MB)</span>`;
         filePreview.appendChild(fileItem);
     });
 }
@@ -64,15 +67,78 @@ function hideStatus() {
     statusDiv.className = 'status';
 }
 
-function showProgress(percent) {
-    progressBar.classList.add('show');
-    progressFill.style.width = percent + '%';
+// Her bir dosyayı tek tek yükleyen fonksiyon
+function uploadFile(file, index, totalFiles) {
+    return new Promise((resolve, reject) => {
+        // Her dosya için kendi progress barını oluştur
+        const progressItem = document.createElement('div');
+        progressItem.className = 'progress-item';
+
+        const progressInfo = document.createElement('div');
+        progressInfo.className = 'progress-item-info';
+
+        const progressBarContainer = document.createElement('div');
+        progressBarContainer.className = 'progress-bar-container';
+        const progressBarFill = document.createElement('div');
+        progressBarFill.className = 'progress-bar-fill';
+        progressBarContainer.appendChild(progressBarFill);
+        
+        const progressStatus = document.createElement('div');
+        progressStatus.className = 'progress-item-status';
+        progressStatus.textContent = '⏳'; // Bekliyor...
+
+        progressItem.appendChild(progressStatus);
+        progressItem.appendChild(progressInfo);
+        
+        // Dosya adı ve ilerleme çubuğunu yan yana koy
+        const infoAndBar = document.createElement('div');
+        infoAndBar.style.flexGrow = '1';
+        const fileNameDiv = document.createElement('div');
+        fileNameDiv.textContent = `[${index + 1}/${totalFiles}] ${file.name}`;
+        infoAndBar.appendChild(fileNameDiv);
+        infoAndBar.appendChild(progressBarContainer);
+        progressInfo.appendChild(infoAndBar);
+
+
+        uploadProgressContainer.appendChild(progressItem);
+
+        const formData = new FormData();
+        formData.append('files', file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/upload', true);
+        
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+                const percentComplete = (event.loaded / event.total) * 100;
+                progressBarFill.style.width = percentComplete + '%';
+                progressStatus.textContent = '📤'; // Yükleniyor...
+            }
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                progressBarFill.style.width = '100%';
+                progressBarFill.style.backgroundColor = '#4caf50';
+                progressStatus.textContent = '✅'; // Başarılı
+                resolve(xhr.responseText);
+            } else {
+                progressStatus.textContent = '❌'; // Hata
+                progressBarFill.style.backgroundColor = '#f44336';
+                reject(new Error(`Sunucu Hatası (${xhr.status}): ${xhr.responseText}`));
+            }
+        };
+
+        xhr.onerror = () => {
+            progressStatus.textContent = '❌'; // Hata
+            progressBarFill.style.backgroundColor = '#f44336';
+            reject(new Error('Ağ hatası veya sunucuya ulaşılamıyor.'));
+        };
+
+        xhr.send(formData);
+    });
 }
 
-function hideProgress() {
-    progressBar.classList.remove('show');
-    progressFill.style.width = '0%';
-}
 
 uploadButton.addEventListener('click', async () => {
     if (selectedFiles.length === 0) {
@@ -81,115 +147,89 @@ uploadButton.addEventListener('click', async () => {
         return;
     }
 
-    // Resim ve video dosyalarını kontrol et
     const validTypes = [
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm',
-        'video/quicktime', 'video/x-msvideo', 'video/3gpp', 'video/3gpp2'  // iPhone/iOS uyumluluğu için
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'video/mp4', 'video/mov', 'video/quicktime', 'video/x-msvideo',
+        'video/avi', 'video/wmv', 'video/flv', 'video/webm', 'video/3gpp', 'video/3gpp2'
     ];
     
-    // Debug: Dosya türlerini console'a yazdır
-    selectedFiles.forEach(file => {
-        console.log(`Dosya: ${file.name}, Tür: ${file.type}, Boyut: ${file.size}`);
-    });
-    
-    const invalidFiles = selectedFiles.filter(file => {
-        // Video veya resim dosyası mı kontrol et
-        const isImage = file.type.startsWith('image/');
-        const isVideo = file.type.startsWith('video/') || validTypes.includes(file.type);
-        return !(isImage || isVideo);
-    });
+    const invalidFiles = selectedFiles.filter(file => !validTypes.some(type => file.type.startsWith(type)));
     
     if (invalidFiles.length > 0) {
         console.log('Geçersiz dosyalar:', invalidFiles.map(f => ({ name: f.name, type: f.type })));
-        showStatus('📸🎥 Lütfen sadece resim veya video dosyaları seçin (JPG, PNG, GIF, WebP, MP4, AVI, MOV)', 'error');
-        setTimeout(hideStatus, 3000);
+        showStatus('📸🎥 Lütfen sadece resim veya video dosyaları seçin.', 'error');
+        setTimeout(hideStatus, 5000);
         return;
     }
+    
+    uploadButton.disabled = true;
+    uploadButton.textContent = '⏳ Yükleniyor...';
+    hideStatus();
+    uploadProgressContainer.innerHTML = ''; // Önceki progress'leri temizle
 
-    // FormData, dosyaları göndermek için kullanılır
-    const formData = new FormData();
-    selectedFiles.forEach(file => {
-        formData.append('files', file);
-    });
+    let successCount = 0;
+    let errorCount = 0;
 
-    showStatus(`💕 ${selectedFiles.length} dosya yükleniyor... Lütfen bekleyin`, 'loading');
-    showProgress(0);
-
-    // Fake progress animation
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-        progress += Math.random() * 15;
-        if (progress > 90) progress = 90;
-        showProgress(progress);
-    }, 500);
-
-    try {
-        console.log('Upload isteği gönderiliyor:', selectedFiles.length, 'dosya');
-        
-        const response = await fetch('/upload', {
-            method: 'POST',
-            body: formData,
-        });
-
-        clearInterval(progressInterval);
-        showProgress(100);
-
-        console.log('Response status:', response.status);
-        const resultText = await response.text();
-        console.log('Response text:', resultText);
-
-        if (response.ok) {
-            showStatus(`🎉 ${resultText}<br><small>✨ Anılarınız Google Drive'a başarıyla eklendi! Teşekkür ederiz 💕</small>`, 'success');
-            
-            // Reset form
-            selectedFiles = [];
-            fileInput.value = '';
-            updateFilePreview();
-            uploadButton.textContent = '💕 Anıları Paylaş 💕';
-            
-            // Confetti effect (simulate)
-            setTimeout(() => {
-                document.body.style.animation = 'none';
-                document.body.offsetHeight; // Trigger reflow
-                document.body.style.animation = 'confetti 2s ease-out';
-            }, 500);
-            
-        } else {
-            let errorMessage = `💔 Sunucu Hatası (${response.status}): ${resultText}`;
-            
-            if (response.status === 500) {
-                errorMessage += '<br><small>🔧 Google Drive bağlantısında sorun olabilir. Lütfen daha sonra tekrar deneyin.</small>';
-            }
-            
-            showStatus(errorMessage, 'error');
+    for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        try {
+            await uploadFile(file, i, selectedFiles.length);
+            successCount++;
+        } catch (error) {
+            console.error(`Dosya yüklenemedi: ${file.name}`, error);
+            errorCount++;
         }
-        
-        setTimeout(hideProgress, 2000);
-        
-    } catch (error) {
-        clearInterval(progressInterval);
-        hideProgress();
-        console.error('Upload hatası:', error);
-        showStatus(`💔 Bağlantı hatası: ${error.message}<br><small>📶 İnternet bağlantınızı kontrol edin ve tekrar deneyin.</small>`, 'error');
     }
+    
+    // Final status
+    if (errorCount === 0) {
+        showStatus(`🎉 Tüm anılarınız (${successCount} adet) başarıyla yüklendi! Teşekkür ederiz! 💕`, 'success');
+    } else {
+        showStatus(`💔 ${successCount} dosya yüklendi, ${errorCount} dosyada hata oluştu.`, 'error');
+    }
+    
+    // Reset form
+    uploadButton.disabled = false;
+    uploadButton.textContent = '💕 Başka Anı Paylaş 💕';
+    selectedFiles = [];
+    fileInput.value = '';
+    // filePreview'i hemen temizleme, kullanıcının ne yüklediğini görmesi için bırak.
+    // İstersek birkaç saniye sonra temizleyebiliriz.
+    setTimeout(() => {
+        filePreview.innerHTML = '';
+        uploadProgressContainer.innerHTML = '';
+        hideStatus();
+        uploadButton.textContent = '💕 Anıları Paylaş 💕';
+    }, 10000); 
+
 });
 
 // Add some nice effects
 document.addEventListener('DOMContentLoaded', () => {
-    // Add smooth scrolling
     document.documentElement.style.scrollBehavior = 'smooth';
-    
-    // Add entrance animation delay
     setTimeout(() => {
         document.querySelector('.container').style.transform = 'translateY(0)';
         document.querySelector('.container').style.opacity = '1';
     }, 100);
 });
 
-// Add confetti animation to CSS dynamically
+// Stilleri CSS dosyasına taşımak daha iyi ama basitlik için burada
 const style = document.createElement('style');
 style.textContent = `
+    .file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px;
+        background-color: #f9f9f9;
+        border-radius: 5px;
+        margin-bottom: 5px;
+        font-size: 0.9rem;
+    }
+    .file-size {
+        color: #666;
+        font-style: italic;
+    }
     @keyframes confetti {
         0% { transform: scale(1); }
         50% { transform: scale(1.05); }
