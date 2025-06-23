@@ -165,7 +165,8 @@ uploadButton.addEventListener('click', async () => {
     uploadButton.disabled = true;
     uploadButton.textContent = '⏳ Yükleniyor...';
     hideStatus();
-    uploadProgressContainer.innerHTML = ''; // Önceki progress'leri temizle
+    uploadProgressContainer.innerHTML = ''; // Önceki sonuçları temizle
+    filePreview.innerHTML = ''; // Seçim önizlemesini temizle, yerini progress bar'lar alacak
 
     let successCount = 0;
     let errorCount = 0;
@@ -181,27 +182,18 @@ uploadButton.addEventListener('click', async () => {
         }
     }
     
-    // Final status
+    // Kalıcı sonuç mesajı
     if (errorCount === 0) {
-        showStatus(`🎉 Tüm anılarınız (${successCount} adet) başarıyla yüklendi! Teşekkür ederiz! 💕`, 'success');
+        showStatus(`🎉 Harika! ${successCount} anının tamamı başarıyla yüklendi. Teşekkür ederiz! 💕`, 'success');
     } else {
-        showStatus(`💔 ${successCount} dosya yüklendi, ${errorCount} dosyada hata oluştu.`, 'error');
+        showStatus(`💔 ${successCount} dosya yüklendi, ${errorCount} dosyada hata oluştu. Lütfen hatalı olanları (❌) tekrar yüklemeyi deneyin.`, 'error');
     }
     
-    // Reset form
+    // Formu sıfırla ama sonuçları ekranda bırak
     uploadButton.disabled = false;
     uploadButton.textContent = '💕 Başka Anı Paylaş 💕';
     selectedFiles = [];
     fileInput.value = '';
-    // filePreview'i hemen temizleme, kullanıcının ne yüklediğini görmesi için bırak.
-    // İstersek birkaç saniye sonra temizleyebiliriz.
-    setTimeout(() => {
-        filePreview.innerHTML = '';
-        uploadProgressContainer.innerHTML = '';
-        hideStatus();
-        uploadButton.textContent = '💕 Anıları Paylaş 💕';
-    }, 10000); 
-
 });
 
 // Add some nice effects
