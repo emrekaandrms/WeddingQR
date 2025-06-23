@@ -1,12 +1,11 @@
 // Tam ve Düzeltilmiş server.js Kodu
 
 const express = require('express');
-const multer = require('multer');
 const { google } = require('googleapis');
 const path = require('path');
 const cors = require('cors');
-// Bu satırın en yukarıda olması gerekiyor
 const { Readable } = require('stream');
+const Busboy = require('busboy');
 
 const app = express();
 app.use(cors());
@@ -21,7 +20,6 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'frontend')));
 
 // --- AYARLAR ---
-// !!! BU SATIRI KENDİ KLASÖR ID'NİZ İLE DEĞİŞTİRİN !!!
 const DRIVE_FOLDER_ID = '1ZWL6g4fJrwfhJhOot2N2P-MNfXr148mY'; 
 // --- BİTTİ ---
 
@@ -33,23 +31,18 @@ let isGoogleConfigured = false;
 
 try {
     if (process.env.GOOGLE_CREDENTIALS_JSON) {
-        // Railway JSON formatı için (eğer çalışırsa)
         console.log('Google Credentials ortam değişkeninden yükleniyor...');
         const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
-        auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: SCOPES,
-        });
+        auth = new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
         isGoogleConfigured = true;
         console.log('✅ Google Credentials başarıyla yüklendi');
     } else if (process.env.type && process.env.private_key && process.env.client_email) {
-        // Railway'in ayrı variable'ları için
         console.log('Google Credentials ayrı variable\'lardan yükleniyor...');
         const credentials = {
             type: process.env.type,
             project_id: process.env.project_id,
             private_key_id: process.env.private_key_id,
-            private_key: process.env.private_key.replace(/\\n/g, '\n'), // \n karakterlerini düzelt
+            private_key: process.env.private_key.replace(/\\n/g, '\n'),
             client_email: process.env.client_email,
             client_id: process.env.client_id,
             auth_uri: process.env.auth_uri,
@@ -58,22 +51,14 @@ try {
             client_x509_cert_url: process.env.client_x509_cert_url,
             universe_domain: process.env.universe_domain || 'googleapis.com'
         };
-        
-        auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: SCOPES,
-        });
+        auth = new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
         isGoogleConfigured = true;
         console.log('✅ Google Credentials ayrı variable\'lardan başarıyla yüklendi');
     } else {
-        // Yerel geliştirme için
         console.log('⚠️  Ortam değişkenleri bulunamadı');
         console.log('Yerel credentials.json dosyası aranıyor...');
-        const KEYFILEPATH = path.join(__dirname, 'backend/credentials.json');
-        auth = new google.auth.GoogleAuth({
-            keyFile: KEYFILEPATH,
-            scopes: SCOPES,
-        });
+        const KEYFILEPATH = path.join(__dirname, 'credentials.json');
+        auth = new google.auth.GoogleAuth({ keyFile: KEYFILEPATH, scopes: SCOPES });
         isGoogleConfigured = true;
         console.log('✅ Yerel credentials.json dosyası yüklendi');
     }
@@ -82,7 +67,7 @@ try {
     isGoogleConfigured = false;
 }
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Multer kaldırıldı, artık Busboy kullanılıyor.
 
 // Test endpoint
 app.get('/test', (req, res) => {
@@ -92,73 +77,75 @@ app.get('/test', (req, res) => {
         googleConfigured: isGoogleConfigured,
         driveFolder: DRIVE_FOLDER_ID
     };
-    
     console.log('Test endpoint çağrıldı:', status);
     res.json(status);
 });
 
-app.post('/upload', upload.array('files'), async (req, res) => {
-    console.log('📁 Upload isteği alındı, dosya sayısı:', req.files ? req.files.length : 0);
-    
-    // Google konfigürasyonu kontrolü
+// Dosyaları hafızaya almadan doğrudan Google Drive'a stream eden yeni upload endpoint'i
+app.post('/upload', (req, res) => {
+    console.log('📁 Upload isteği alındı, streaming başlıyor...');
+
     if (!isGoogleConfigured) {
         console.error('❌ Google Drive konfigürasyonu eksik');
-        return res.status(500).send('Google Drive bağlantısı yapılandırılmamış. Lütfen yöneticiye haber verin.');
+        return res.status(500).send('Google Drive bağlantısı yapılandırılmamış.');
     }
-    
-    try {
-        if (!req.files || req.files.length === 0) {
-            console.log('⚠️  Hiç dosya gönderilmedi');
-            return res.status(400).send('Hiç dosya yüklenmedi.');
-        }
 
-        console.log('🔗 Google Drive servisi başlatılıyor...');
-        const driveService = google.drive({ version: 'v3', auth });
+    const busboy = Busboy({ headers: req.headers });
+    const driveService = google.drive({ version: 'v3', auth });
 
-        for (const file of req.files) {
-            console.log(`📤 Yükleniyor: ${file.originalname} (${file.mimetype}, ${file.size} bytes)`);
-            
-            const fileMetadata = {
-                name: file.originalname,
-                parents: [DRIVE_FOLDER_ID],
-            };
-            
-            const media = {
-                mimeType: file.mimetype,
-                body: Readable.from(file.buffer),
-            };
+    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        console.log(`📤 Yükleniyor: ${filename} (${mimetype})`);
 
-            const result = await driveService.files.create({
+        const fileMetadata = {
+            name: filename,
+            parents: [DRIVE_FOLDER_ID],
+        };
+
+        const media = {
+            mimeType: mimetype,
+            body: file, // Dosya stream'ini doğrudan body olarak veriyoruz
+        };
+
+        driveService.files.create(
+            {
                 resource: fileMetadata,
                 media: media,
                 fields: 'id,name',
-            });
-            
-            console.log(`✅ Yüklendi: ${result.data.name} (ID: ${result.data.id})`);
-        }
+            },
+            (err, result) => {
+                if (err) {
+                    console.error('❌ YÜKLEME HATASI:', err);
+                    // Hata durumunda stream'i sonlandırıp hatayı client'a gönderiyoruz
+                    // Ancak busboy'da bu doğrudan basit değil, en iyisi isteği sonlandırmak.
+                    if (!res.headersSent) {
+                       res.status(500).send(`Dosya yüklenirken hata oluştu: ${err.message}`);
+                    }
+                    return;
+                }
+                console.log(`✅ Yüklendi: ${result.data.name} (ID: ${result.data.id})`);
+                // Başarılı olursa client'a cevap gönder
+                 if (!res.headersSent) {
+                    res.status(200).send(`1 dosya başarıyla Google Drive'a yüklendi!`);
+                 }
+            }
+        );
+    });
+    
+    busboy.on('finish', () => {
+        console.log('🎉 Upload stream bitti.');
+        // Normalde burada response gönderilirdi ama 'file' callback'i içinde gönderiyoruz.
+        // Google API callback'i asenkron olduğu için en güvenli yer orası.
+    });
 
-        const successMessage = `${req.files.length} dosya başarıyla Google Drive'a yüklendi!`;
-        console.log('🎉', successMessage);
-        res.status(200).send(successMessage);
-
-    } catch (error) {
-        console.error('❌ YÜKLEME HATASI:', error);
-        
-        // Google API hatalarını daha anlaşılır hale getir
-        let userMessage = 'Dosyalar yüklenirken bir hata oluştu.';
-        
-        if (error.message.includes('Invalid Credentials')) {
-            userMessage = 'Google Drive bağlantı bilgileri geçersiz.';
-        } else if (error.message.includes('Forbidden')) {
-            userMessage = 'Google Drive klasörüne erişim izni yok.';
-        } else if (error.message.includes('Not Found')) {
-            userMessage = 'Google Drive klasörü bulunamadı.';
-        } else if (error.code === 'ENOTFOUND') {
-            userMessage = 'İnternet bağlantısı sorunu.';
+    busboy.on('error', err => {
+        console.error('Busboy hatası:', err);
+        req.unpipe(busboy);
+        if (!res.headersSent) {
+            res.status(500).send('Dosya parse etme hatası.');
         }
-        
-        res.status(500).send(userMessage);
-    }
+    });
+
+    req.pipe(busboy);
 });
 
 // Ana sayfa için route
